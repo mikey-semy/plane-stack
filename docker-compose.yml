@@ -71,46 +71,45 @@ services:
   # ------------------------------------------
   web:
     image: artifacts.plane.so/makeplane/plane-frontend:${APP_RELEASE:-v1.2.1}
+    networks:
+      - default
     deploy:
       replicas: ${WEB_REPLICAS:-1}
       restart_policy:
         condition: any
-    depends_on:
-      - api
-      - worker
+        delay: 5s
 
   space:
     image: artifacts.plane.so/makeplane/plane-space:${APP_RELEASE:-v1.2.1}
+    networks:
+      - default
     deploy:
       replicas: ${SPACE_REPLICAS:-1}
       restart_policy:
         condition: any
-    depends_on:
-      - api
-      - worker
-      - web
+        delay: 5s
 
   admin:
     image: artifacts.plane.so/makeplane/plane-admin:${APP_RELEASE:-v1.2.1}
+    networks:
+      - default
     deploy:
       replicas: ${ADMIN_REPLICAS:-1}
       restart_policy:
         condition: any
-    depends_on:
-      - api
-      - web
+        delay: 5s
 
   live:
     image: artifacts.plane.so/makeplane/plane-live:${APP_RELEASE:-v1.2.1}
+    networks:
+      - default
     environment:
       <<: [*live-env, *redis-env]
     deploy:
       replicas: ${LIVE_REPLICAS:-1}
       restart_policy:
         condition: any
-    depends_on:
-      - api
-      - web
+        delay: 5s
 
   # ------------------------------------------
   # BACKEND SERVICES
@@ -118,67 +117,63 @@ services:
   api:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
     command: ./bin/docker-entrypoint-api.sh
+    networks:
+      - default
     deploy:
       replicas: ${API_REPLICAS:-1}
       restart_policy:
         condition: any
+        delay: 10s
     volumes:
       - logs_api:/code/plane/logs
     environment:
       <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
-    depends_on:
-      - plane-db
-      - plane-redis
-      - plane-mq
 
   worker:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
     command: ./bin/docker-entrypoint-worker.sh
+    networks:
+      - default
     deploy:
       replicas: ${WORKER_REPLICAS:-1}
       restart_policy:
         condition: any
+        delay: 10s
     volumes:
       - logs_worker:/code/plane/logs
     environment:
       <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
-    depends_on:
-      - api
-      - plane-db
-      - plane-redis
-      - plane-mq
 
   beat-worker:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
     command: ./bin/docker-entrypoint-beat.sh
+    networks:
+      - default
     deploy:
       replicas: ${BEAT_WORKER_REPLICAS:-1}
       restart_policy:
         condition: any
+        delay: 10s
     volumes:
       - logs_beat-worker:/code/plane/logs
     environment:
       <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
-    depends_on:
-      - api
-      - plane-db
-      - plane-redis
-      - plane-mq
 
   migrator:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
     command: ./bin/docker-entrypoint-migrator.sh
+    networks:
+      - default
     deploy:
       replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
+        max_attempts: 10
     volumes:
       - logs_migrator:/code/plane/logs
     environment:
       <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
-    depends_on:
-      - plane-db
-      - plane-redis
 
   # ------------------------------------------
   # DATA SERVICES
@@ -186,6 +181,8 @@ services:
   plane-db:
     image: postgres:15.7-alpine
     command: postgres -c 'max_connections=1000'
+    networks:
+      - default
     deploy:
       replicas: 1
       restart_policy:
@@ -197,6 +194,8 @@ services:
 
   plane-redis:
     image: valkey/valkey:7.2.11-alpine
+    networks:
+      - default
     deploy:
       replicas: 1
       restart_policy:
@@ -206,6 +205,8 @@ services:
 
   plane-mq:
     image: rabbitmq:3.13.6-management-alpine
+    networks:
+      - default
     deploy:
       replicas: 1
       restart_policy:
@@ -218,6 +219,8 @@ services:
   plane-minio:
     image: minio/minio:latest
     command: server /export --console-address ":9090"
+    networks:
+      - default
     deploy:
       replicas: 1
       restart_policy:
@@ -232,13 +235,13 @@ services:
   # ------------------------------------------
   plane-mcp:
     image: ghcr.io/mikey-semy/plane-mcp:latest
-    build:
-      context: https://github.com/mikey-semy/plane-mcp.git
-      dockerfile: Dockerfile
+    networks:
+      - default
     deploy:
       replicas: 1
       restart_policy:
         condition: any
+        delay: 15s
     environment:
       PLANE_API_KEY: ${PLANE_API_KEY}
       PLANE_WORKSPACE_SLUG: ${PLANE_WORKSPACE_SLUG}
@@ -250,18 +253,19 @@ services:
         published: ${MCP_PORT:-8001}
         protocol: tcp
         mode: host
-    depends_on:
-      - api
 
   # ------------------------------------------
   # PROXY
   # ------------------------------------------
   proxy:
     image: artifacts.plane.so/makeplane/plane-proxy:${APP_RELEASE:-v1.2.1}
+    networks:
+      - default
     deploy:
       replicas: 1
       restart_policy:
         condition: any
+        delay: 5s
     environment:
       <<: *proxy-env
     ports:
@@ -276,12 +280,6 @@ services:
     volumes:
       - proxy_config:/config
       - proxy_data:/data
-    depends_on:
-      - web
-      - api
-      - space
-      - admin
-      - live
 
 volumes:
   pgdata:
@@ -294,3 +292,8 @@ volumes:
   rabbitmq_data:
   proxy_config:
   proxy_data:
+
+networks:
+  default:
+    driver: overlay
+    attachable: true
