@@ -226,6 +226,9 @@ services:
   # ------------------------------------------
   proxy:
     image: artifacts.plane.so/makeplane/plane-proxy:${APP_RELEASE:-v1.2.1}
+    networks:
+    - default
+    - dokploy-network 
     deploy:
       replicas: 1
       restart_policy:
@@ -252,7 +255,7 @@ services:
     volumes:
       - proxy_config:/config
       - proxy_data:/data
-
+  
 volumes:
   pgdata:
   redisdata:
@@ -264,3 +267,7 @@ volumes:
   rabbitmq_data:
   proxy_config:
   proxy_data:
+  
+networks:
+  dokploy-network:
+    external: true
