@@ -202,24 +202,24 @@ services:
   # ------------------------------------------
   # MCP SERVER (Plane API for AI)
   # ------------------------------------------
-  plane-mcp:
-    image: ghcr.io/mikey-semy/plane-mcp:latest
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-        delay: 15s
-    environment:
-      PLANE_API_KEY: ${PLANE_API_KEY}
-      PLANE_WORKSPACE_SLUG: ${PLANE_WORKSPACE_SLUG}
-      PLANE_API_HOST_URL: ${API_BASE_URL}
-      MCP_HOST: 0.0.0.0
-      MCP_PORT: 8000
-    ports:
-      - target: 8000
-        published: ${MCP_PORT:-8001}
-        protocol: tcp
-        mode: host
+  # plane-mcp:
+  #   image: ghcr.io/mikey-semy/plane-mcp:latest
+  #   deploy:
+  #     replicas: 1
+  #     restart_policy:
+  #       condition: any
+  #       delay: 15s
+  #   environment:
+  #     PLANE_API_KEY: ${PLANE_API_KEY}
+  #     PLANE_WORKSPACE_SLUG: ${PLANE_WORKSPACE_SLUG}
+  #     PLANE_API_HOST_URL: ${API_BASE_URL}
+  #     MCP_HOST: 0.0.0.0
+  #     MCP_PORT: 8000
+  #   ports:
+  #     - target: 8000
+  #       published: ${MCP_PORT:-8001}
+  #       protocol: tcp
+  #       mode: host
 
   # ------------------------------------------
   # PROXY
