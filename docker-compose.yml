@@ -231,6 +231,19 @@ services:
       restart_policy:
         condition: any
         delay: 5s
+      labels:
+      - traefik.enable=true
+      - traefik.swarm.network=dokploy-network
+      # HTTP → HTTPS redirect
+      - traefik.http.routers.plane-http.rule=Host(`${APP_DOMAIN}`)
+      - traefik.http.routers.plane-http.entrypoints=web
+      - traefik.http.routers.plane-http.middlewares=plane-redirect
+      - traefik.http.middlewares.plane-redirect.redirectscheme.scheme=https
+      # HTTPS router
+      - traefik.http.routers.plane-https.rule=Host(`${APP_DOMAIN}`)
+      - traefik.http.routers.plane-https.entrypoints=websecure
+      - traefik.http.routers.plane-https.tls.certresolver=letsencrypt
+      - traefik.http.services.plane.loadbalancer.server.port=80
     environment:
       <<: *proxy-env
     volumes:
