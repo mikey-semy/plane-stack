@@ -60,9 +60,7 @@ x-app-env: &app-env
   LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY}
 
 # ============================================
-# PLANE v1.2.1 - Docker Swarm Compatible
-# ============================================
-# Deploy: docker stack deploy -c docker-compose.yml plane
+# PLANE v1.2.1 - Docker Swarm / Dokploy Stack
 # ============================================
 
 services:
@@ -71,8 +69,6 @@ services:
   # ------------------------------------------
   web:
     image: artifacts.plane.so/makeplane/plane-frontend:${APP_RELEASE:-v1.2.1}
-    networks:
-      - default
     deploy:
       replicas: ${WEB_REPLICAS:-1}
       restart_policy:
@@ -81,8 +77,6 @@ services:
 
   space:
     image: artifacts.plane.so/makeplane/plane-space:${APP_RELEASE:-v1.2.1}
-    networks:
-      - default
     deploy:
       replicas: ${SPACE_REPLICAS:-1}
       restart_policy:
@@ -91,8 +85,6 @@ services:
 
   admin:
     image: artifacts.plane.so/makeplane/plane-admin:${APP_RELEASE:-v1.2.1}
-    networks:
-      - default
     deploy:
       replicas: ${ADMIN_REPLICAS:-1}
       restart_policy:
@@ -101,8 +93,6 @@ services:
 
   live:
     image: artifacts.plane.so/makeplane/plane-live:${APP_RELEASE:-v1.2.1}
-    networks:
-      - default
     environment:
       <<: [*live-env, *redis-env]
     deploy:
@@ -117,8 +107,6 @@ services:
   api:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
     command: ./bin/docker-entrypoint-api.sh
-    networks:
-      - default
     deploy:
       replicas: ${API_REPLICAS:-1}
       restart_policy:
@@ -132,8 +120,6 @@ services:
   worker:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
     command: ./bin/docker-entrypoint-worker.sh
-    networks:
-      - default
     deploy:
       replicas: ${WORKER_REPLICAS:-1}
       restart_policy:
@@ -147,8 +133,6 @@ services:
   beat-worker:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
     command: ./bin/docker-entrypoint-beat.sh
-    networks:
-      - default
     deploy:
       replicas: ${BEAT_WORKER_REPLICAS:-1}
       restart_policy:
@@ -162,8 +146,6 @@ services:
   migrator:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
     command: ./bin/docker-entrypoint-migrator.sh
-    networks:
-      - default
     deploy:
       replicas: 1
       restart_policy:
@@ -181,8 +163,6 @@ services:
   plane-db:
     image: postgres:15.7-alpine
     command: postgres -c 'max_connections=1000'
-    networks:
-      - default
     deploy:
       replicas: 1
       restart_policy:
@@ -194,8 +174,6 @@ services:
 
   plane-redis:
     image: valkey/valkey:7.2.11-alpine
-    networks:
-      - default
     deploy:
       replicas: 1
       restart_policy:
@@ -205,8 +183,6 @@ services:
 
   plane-mq:
     image: rabbitmq:3.13.6-management-alpine
-    networks:
-      - default
     deploy:
       replicas: 1
       restart_policy:
@@ -219,8 +195,6 @@ services:
   plane-minio:
     image: minio/minio:latest
     command: server /export --console-address ":9090"
-    networks:
-      - default
     deploy:
       replicas: 1
       restart_policy:
@@ -235,8 +209,6 @@ services:
   # ------------------------------------------
   plane-mcp:
     image: ghcr.io/mikey-semy/plane-mcp:latest
-    networks:
-      - default
     deploy:
       replicas: 1
       restart_policy:
@@ -245,7 +217,7 @@ services:
     environment:
       PLANE_API_KEY: ${PLANE_API_KEY}
       PLANE_WORKSPACE_SLUG: ${PLANE_WORKSPACE_SLUG}
-      PLANE_API_HOST_URL: http://api:8000
+      PLANE_API_HOST_URL: ${API_BASE_URL}
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8000
     ports:
@@ -259,8 +231,6 @@ services:
   # ------------------------------------------
   proxy:
     image: artifacts.plane.so/makeplane/plane-proxy:${APP_RELEASE:-v1.2.1}
-    networks:
-      - default
     deploy:
       replicas: 1
       restart_policy:
@@ -292,8 +262,3 @@ volumes:
   rabbitmq_data:
   proxy_config:
   proxy_data:
-
-networks:
-  default:
-    driver: overlay
-    attachable: true
