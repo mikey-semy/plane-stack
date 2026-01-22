@@ -12,9 +12,7 @@ x-redis-env: &redis-env
   REDIS_PORT: ${REDIS_PORT}
   REDIS_URL: ${REDIS_URL}
 
-x-minio-env: &minio-env
-  MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
-  MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+# MinIO env removed - using external S3 (Yandex Cloud)
 
 x-aws-s3-env: &aws-s3-env
   AWS_REGION: ${AWS_REGION}
@@ -139,7 +137,7 @@ services:
     volumes:
       - logs_api:/code/plane/logs
     environment:
-      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+      <<: [*app-env, *db-env, *redis-env, *aws-s3-env, *proxy-env]
       # ФИКС: Переопределение WEB_URL и BASE_URLs с полными значениями
       WEB_URL: https://${APP_DOMAIN}
       ADMIN_BASE_URL: https://${APP_DOMAIN}/god-mode
@@ -160,7 +158,7 @@ services:
     volumes:
       - logs_worker:/code/plane/logs
     environment:
-      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+      <<: [*app-env, *db-env, *redis-env, *aws-s3-env, *proxy-env]
 
   beat-worker:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
@@ -176,7 +174,7 @@ services:
     volumes:
       - logs_beat-worker:/code/plane/logs
     environment:
-      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+      <<: [*app-env, *db-env, *redis-env, *aws-s3-env, *proxy-env]
 
   migrator:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
@@ -193,7 +191,7 @@ services:
     volumes:
       - logs_migrator:/code/plane/logs
     environment:
-      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+      <<: [*app-env, *db-env, *redis-env, *aws-s3-env, *proxy-env]
 
   # ------------------------------------------
   # DATA SERVICES
@@ -239,42 +237,8 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
-  # Автоматическое создание bucket при первом запуске
-  minio-init:
-    image: minio/mc:latest
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-        max_attempts: 5
-        delay: 10s
-      placement:
-        constraints:
-          - node.role == manager
-    entrypoint: >
-      /bin/sh -c "
-      echo 'Waiting for MinIO to start...';
-      i=1;
-      while [ $$i -le 5 ]; do
-        sleep 5;
-        if /usr/bin/mc alias set myminio http://plane-minio:9000 $${AWS_ACCESS_KEY_ID} $${AWS_SECRET_ACCESS_KEY} 2>/dev/null; then
-          echo 'Connected to MinIO successfully';
-          break;
-        fi;
-        echo \"Retry $$i/5...\";
-        i=$$((i + 1));
-      done;
-      /usr/bin/mc mb myminio/$${AWS_S3_BUCKET_NAME} --ignore-existing || true;
-      /usr/bin/mc anonymous set download myminio/$${AWS_S3_BUCKET_NAME} || true;
-      echo 'MinIO bucket initialized';
-      exit 0;
-      "
-    environment:
-      <<: *aws-s3-env
-
-
   # ------------------------------------------
-  # MCP SERVER (Plane API for AI)
+  # MCP SERVER (Plane API for AI) - Optional
   # ------------------------------------------
   # plane-mcp:
   #   image: ghcr.io/mikey-semy/plane-mcp:latest
@@ -341,7 +305,6 @@ services:
 volumes:
   pgdata:
   redisdata:
-  uploads:
   logs_api:
   logs_worker:
   logs_beat-worker:
