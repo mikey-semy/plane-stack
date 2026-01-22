@@ -65,6 +65,9 @@ services:
   # ------------------------------------------
   web:
     image: artifacts.plane.so/makeplane/plane-frontend:${APP_RELEASE:-v1.2.1}
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${API_BASE_URL}
+      NEXT_PUBLIC_DEPLOY_URL: ${WEB_URL}
     deploy:
       replicas: ${WEB_REPLICAS:-1}
       restart_policy:
@@ -76,6 +79,9 @@ services:
 
   space:
     image: artifacts.plane.so/makeplane/plane-space:${APP_RELEASE:-v1.2.1}
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${API_BASE_URL}
+      NEXT_PUBLIC_DEPLOY_URL: ${WEB_URL}/spaces
     deploy:
       replicas: ${SPACE_REPLICAS:-1}
       restart_policy:
@@ -87,6 +93,13 @@ services:
 
   admin:
     image: artifacts.plane.so/makeplane/plane-admin:${APP_RELEASE:-v1.2.1}
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${API_BASE_URL}
+      NEXT_PUBLIC_ADMIN_BASE_URL: ${WEB_URL}/god-mode
+      NEXT_PUBLIC_ADMIN_BASE_PATH: /god-mode
+      NEXT_PUBLIC_SPACE_BASE_URL: ${WEB_URL}/spaces
+      NEXT_PUBLIC_SPACE_BASE_PATH: /spaces
+      NEXT_PUBLIC_WEB_BASE_URL: ${WEB_URL}
     deploy:
       replicas: ${ADMIN_REPLICAS:-1}
       restart_policy:
@@ -127,6 +140,11 @@ services:
       - logs_api:/code/plane/logs
     environment:
       <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+      # ФИКС: Переопределение WEB_URL и BASE_URLs с полными значениями
+      WEB_URL: https://${APP_DOMAIN}
+      ADMIN_BASE_URL: https://${APP_DOMAIN}/god-mode
+      SPACE_BASE_URL: https://${APP_DOMAIN}/spaces
+      APP_BASE_URL: https://${APP_DOMAIN}
 
   worker:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
