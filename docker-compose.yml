@@ -239,20 +239,29 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
-  plane-minio:
-    image: minio/minio:latest
-    command: server /export --console-address ":9090"
+  # Автоматическое создание bucket при первом запуске
+  minio-init:
+    image: minio/mc:latest
     deploy:
       replicas: 1
       restart_policy:
-        condition: any
+        condition: on-failure
+        max_attempts: 5
+        delay: 10s
       placement:
         constraints:
           - node.role == manager
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      /usr/bin/mc alias set myminio http://plane-stack-ufyql5_plane-minio:9000 ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY};
+      /usr/bin/mc mb myminio/${AWS_S3_BUCKET_NAME} --ignore-existing;
+      /usr/bin/mc anonymous set download myminio/${AWS_S3_BUCKET_NAME};
+      exit 0;
+      "
     environment:
-      <<: *minio-env
-    volumes:
-      - uploads:/export
+      <<: *aws-s3-env
+
 
   # ------------------------------------------
   # MCP SERVER (Plane API for AI)
