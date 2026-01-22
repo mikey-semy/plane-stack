@@ -239,9 +239,11 @@ services:
 
   # ------------------------------------------
   # MCP SERVER (Plane API for AI) - Optional
+  # Uses NPM package @mikey-semy/plane-mcp
   # ------------------------------------------
   plane-mcp:
-    image: ghcr.io/mikey-semy/plane-mcp:latest
+    image: node:20-alpine
+    command: sh -c "npx -y @mikey-semy/plane-mcp"
     deploy:
       replicas: 1
       restart_policy:
@@ -256,6 +258,7 @@ services:
       PLANE_API_HOST_URL: ${API_BASE_URL}
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8000
+      MCP_TRANSPORT: sse
     ports:
       - target: 8000
         published: ${MCP_PORT:-8001}
