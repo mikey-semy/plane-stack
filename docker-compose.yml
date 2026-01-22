@@ -253,10 +253,15 @@ services:
           - node.role == manager
     entrypoint: >
       /bin/sh -c "
-      sleep 10;
-      /usr/bin/mc alias set myminio http://plane-stack-ufyql5_plane-minio:9000 ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY};
+      echo 'Waiting for MinIO to start...';
+      for i in 1 2 3 4 5; do
+        sleep 5;
+        /usr/bin/mc alias set myminio http://plane-stack-ufyql5_plane-minio:9000 ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY} && break;
+        echo 'Retry $$i/5...';
+      done;
       /usr/bin/mc mb myminio/${AWS_S3_BUCKET_NAME} --ignore-existing;
       /usr/bin/mc anonymous set download myminio/${AWS_S3_BUCKET_NAME};
+      echo 'MinIO bucket initialized successfully';
       exit 0;
       "
     environment:
