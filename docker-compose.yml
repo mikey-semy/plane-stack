@@ -56,6 +56,7 @@ x-app-env: &app-env
 
 # ============================================
 # PLANE v1.2.1 - Docker Swarm / Dokploy Stack
+# FIXED: All services on Manager + Caddyfile fix
 # ============================================
 
 services:
@@ -69,6 +70,9 @@ services:
       restart_policy:
         condition: any
         delay: 5s
+      placement:
+        constraints:
+          - node.role == manager
 
   space:
     image: artifacts.plane.so/makeplane/plane-space:${APP_RELEASE:-v1.2.1}
@@ -77,6 +81,9 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
+      placement:
+        constraints:
+          - node.role == manager
 
   admin:
     image: artifacts.plane.so/makeplane/plane-admin:${APP_RELEASE:-v1.2.1}
@@ -85,6 +92,9 @@ services:
       restart_policy:
         condition: any
         delay: 5s
+      placement:
+        constraints:
+          - node.role == manager
 
   live:
     image: artifacts.plane.so/makeplane/plane-live:${APP_RELEASE:-v1.2.1}
@@ -95,6 +105,9 @@ services:
       restart_policy:
         condition: any
         delay: 5s
+      placement:
+        constraints:
+          - node.role == manager
 
   # ------------------------------------------
   # BACKEND SERVICES
@@ -107,6 +120,9 @@ services:
       restart_policy:
         condition: any
         delay: 10s
+      placement:
+        constraints:
+          - node.role == manager
     volumes:
       - logs_api:/code/plane/logs
     environment:
@@ -120,6 +136,9 @@ services:
       restart_policy:
         condition: any
         delay: 10s
+      placement:
+        constraints:
+          - node.role == manager
     volumes:
       - logs_worker:/code/plane/logs
     environment:
@@ -133,6 +152,9 @@ services:
       restart_policy:
         condition: any
         delay: 10s
+      placement:
+        constraints:
+          - node.role == manager
     volumes:
       - logs_beat-worker:/code/plane/logs
     environment:
@@ -147,6 +169,9 @@ services:
         condition: on-failure
         delay: 10s
         max_attempts: 10
+      placement:
+        constraints:
+          - node.role == manager
     volumes:
       - logs_migrator:/code/plane/logs
     environment:
@@ -162,6 +187,9 @@ services:
       replicas: 1
       restart_policy:
         condition: any
+      placement:
+        constraints:
+          - node.role == manager
     environment:
       <<: *db-env
     volumes:
@@ -173,6 +201,9 @@ services:
       replicas: 1
       restart_policy:
         condition: any
+      placement:
+        constraints:
+          - node.role == manager
     volumes:
       - redisdata:/data
 
@@ -182,6 +213,9 @@ services:
       replicas: 1
       restart_policy:
         condition: any
+      placement:
+        constraints:
+          - node.role == manager
     environment:
       <<: *mq-env
     volumes:
@@ -194,6 +228,9 @@ services:
       replicas: 1
       restart_policy:
         condition: any
+      placement:
+        constraints:
+          - node.role == manager
     environment:
       <<: *minio-env
     volumes:
@@ -209,6 +246,9 @@ services:
   #     restart_policy:
   #       condition: any
   #       delay: 15s
+  #     placement:
+  #       constraints:
+  #         - node.role == manager
   #   environment:
   #     PLANE_API_KEY: ${PLANE_API_KEY}
   #     PLANE_WORKSPACE_SLUG: ${PLANE_WORKSPACE_SLUG}
@@ -222,7 +262,7 @@ services:
   #       mode: host
 
   # ------------------------------------------
-  # PROXY
+  # PROXY (with fixed Caddyfile)
   # ------------------------------------------
   proxy:
     image: artifacts.plane.so/makeplane/plane-proxy:${APP_RELEASE:-v1.2.1}
@@ -234,6 +274,9 @@ services:
       restart_policy:
         condition: any
         delay: 5s
+      placement:
+        constraints:
+          - node.role == manager
       labels:
         - traefik.enable=true
         - traefik.swarm.network=dokploy-network
@@ -253,6 +296,8 @@ services:
     environment:
       <<: *proxy-env
     volumes:
+      # ФИКС: Используем исправленный Caddyfile с полными именами сервисов
+      - /root/plane-caddyfile-fix/Caddyfile:/etc/caddy/Caddyfile:ro
       - proxy_config:/config
       - proxy_data:/data
   
