@@ -259,11 +259,11 @@ services:
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8000
       MCP_TRANSPORT: sse
-    ports:
-      - target: 8000
-        published: ${MCP_PORT:-8001}
-        protocol: tcp
-        mode: host
+    # ports:
+    #   - target: 8000
+    #     published: ${MCP_PORT:-8001}
+    #     protocol: tcp
+    #     mode: host
 
   # ------------------------------------------
   # PROXY (with fixed Caddyfile)
