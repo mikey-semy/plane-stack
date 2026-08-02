@@ -64,7 +64,9 @@ services:
   web:
     image: artifacts.plane.so/makeplane/plane-frontend:${APP_RELEASE:-v1.2.1}
     environment:
-      NEXT_PUBLIC_API_BASE_URL: ${API_BASE_URL}
+      # NEXT_PUBLIC_* уходит в браузер — здесь обязан быть публичный адрес,
+      # а не внутреннее имя сервиса (API_BASE_URL внутренний).
+      NEXT_PUBLIC_API_BASE_URL: https://${APP_DOMAIN}
       NEXT_PUBLIC_DEPLOY_URL: ${WEB_URL}
     deploy:
       replicas: ${WEB_REPLICAS:-1}
@@ -78,12 +80,14 @@ services:
   space:
     image: artifacts.plane.so/makeplane/plane-space:${APP_RELEASE:-v1.2.1}
     environment:
-      NEXT_PUBLIC_API_BASE_URL: ${API_BASE_URL}
+      NEXT_PUBLIC_API_BASE_URL: https://${APP_DOMAIN}
       NEXT_PUBLIC_DEPLOY_URL: ${WEB_URL}/spaces
     deploy:
       replicas: ${SPACE_REPLICAS:-1}
       restart_policy:
-        condition: on-failure
+        # Было on-failure: контейнер однажды вышел с кодом 0, Swarm его не поднял,
+        # сервис завис в 0/1 и /spaces/ отдавал 502. Как у web/admin — any.
+        condition: any
         delay: 5s
       placement:
         constraints:
@@ -92,7 +96,7 @@ services:
   admin:
     image: artifacts.plane.so/makeplane/plane-admin:${APP_RELEASE:-v1.2.1}
     environment:
-      NEXT_PUBLIC_API_BASE_URL: ${API_BASE_URL}
+      NEXT_PUBLIC_API_BASE_URL: https://${APP_DOMAIN}
       NEXT_PUBLIC_ADMIN_BASE_URL: ${WEB_URL}/god-mode
       NEXT_PUBLIC_ADMIN_BASE_PATH: /god-mode
       NEXT_PUBLIC_SPACE_BASE_URL: ${WEB_URL}/spaces
@@ -111,6 +115,13 @@ services:
     image: artifacts.plane.so/makeplane/plane-live:${APP_RELEASE:-v1.2.1}
     environment:
       <<: [*live-env, *redis-env]
+      # ФИКС: ${API_BASE_URL} = http://plane-stack-ufyql5_api:8000, а Django
+      # отбраковывает Host с подчёркиванием (400 Bad Request) — регулярка
+      # django.http.request.host_validation_re не допускает "_".
+      # Из-за этого live не мог авторизовать документы и совместное
+      # редактирование описаний/страниц молча ломалось.
+      # plane-api — сетевой алиас сервиса api без подчёркивания (см. ниже).
+      API_BASE_URL: http://plane-api:8000
     deploy:
       replicas: ${LIVE_REPLICAS:-1}
       restart_policy:
@@ -126,6 +137,13 @@ services:
   api:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.1}
     command: ./bin/docker-entrypoint-api.sh
+    networks:
+      default:
+        # Swarm/Dokploy даёт сервису имя plane-stack-ufyql5_api — с подчёркиванием,
+        # а Django на такой Host отвечает 400 Bad Request независимо от ALLOWED_HOSTS.
+        # Алиас без "_" даёт внутренним клиентам (live, plane-mcp) валидное имя хоста.
+        aliases:
+          - plane-api
     deploy:
       replicas: ${API_REPLICAS:-1}
       restart_policy:
@@ -241,9 +259,15 @@ services:
   # MCP SERVER (Plane API for AI) - Optional
   # Uses NPM package @mikey-semy/plane-mcp
   # ------------------------------------------
-  plane-mcp:                                                                                                                                                                                                                                                                                                                                                                                                                                        
-    image: python:3.12-slim                                                                                                                                                                                                       
-    command: sh -c "apt-get update && apt-get install -y git && pip install git+https://github.com/mikey-semy/plane-mcp.git && plane-mcp"    
+  plane-mcp:
+    image: python:3.12-slim
+    # Было: apt-get update && apt-get install git && pip install git+https://...
+    # Версия не пинилась, а образ каждый старт тянул apt-зеркала и git.
+    # Установка из tarball GitHub не требует git и жёстко пинит коммит.
+    command: >
+      sh -c "pip install --no-cache-dir --root-user-action=ignore
+      https://github.com/mikey-semy/plane-mcp/archive/${PLANE_MCP_REF:-95e424dabadcbf7450b73d233e3e6ffa3612fc42}.tar.gz
+      && exec plane-mcp"
     deploy:
       replicas: 1
       restart_policy:
@@ -252,18 +276,34 @@ services:
       placement:
         constraints:
           - node.role == manager
+      labels:
+        # Эндпоинт публичный и раздаёт зашитый API-ключ всем желающим,
+        # поэтому закрыт BasicAuth. Имя роутера генерирует Dokploy
+        # (домен mcp.plane.equiply.ru, id 145); сам middleware описан в
+        # /etc/dokploy/traefik/dynamic/mcp-auth.yml — хеш пароля не в git.
+        - traefik.http.routers.plane-stack-ufyql5-145-websecure.middlewares=mcp-auth@file
     environment:
       PLANE_API_KEY: ${PLANE_API_KEY}
       PLANE_WORKSPACE_SLUG: ${PLANE_WORKSPACE_SLUG}
-      PLANE_API_HOST_URL: ${API_BASE_URL}
+      # Было ${API_BASE_URL} = http://plane-stack-ufyql5_api:8000 — Django
+      # отвечал 400 на каждый вызов инструмента из-за подчёркивания в Host.
+      PLANE_API_HOST_URL: http://plane-api:8000
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8000
-      MCP_TRANSPORT: sse
-    # ports:
-    #   - target: 8000
-    #     published: ${MCP_PORT:-8001}
-    #     protocol: tcp
-    #     mode: host
+      # sse объявлен deprecated в ревизии спеки MCP 2025-03-26 и поднимает
+      # только /sse + /messages/. Клиенты ходят на /mcp и получали 404.
+      MCP_TRANSPORT: streamable-http
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import socket; socket.create_connection(('127.0.0.1', 8000), timeout=3).close()
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # pip install на холодном старте занимает до полутора минут.
+      start_period: 180s
 
   # ------------------------------------------
   # PROXY (with fixed Caddyfile)
