@@ -82,6 +82,22 @@ services:
     environment:
       NEXT_PUBLIC_API_BASE_URL: https://${APP_DOMAIN}
       NEXT_PUBLIC_DEPLOY_URL: ${WEB_URL}/spaces
+    # Проба из образа сломана дважды: она вызывает curl, которого в
+    # plane-space нет (rc=127), и бьёт в "/", который отдаёт 404 —
+    # а -f роняет curl на любом 4xx. Swarm гасил задачу по SIGTERM
+    # каждые ~100 секунд. В образе есть node v22, им и проверяем,
+    # что сервер принимает соединения. (В web/admin curl есть, там
+    # штатная проба работает.)
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - require('http').get('http://127.0.0.1:3000/', () => process.exit(0)).on('error', () => process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     deploy:
       replicas: ${SPACE_REPLICAS:-1}
       restart_policy:
@@ -266,7 +282,7 @@ services:
     # Установка из tarball GitHub не требует git и жёстко пинит коммит.
     command: >
       sh -c "pip install --no-cache-dir --root-user-action=ignore
-      https://github.com/mikey-semy/plane-mcp/archive/${PLANE_MCP_REF:-95e424dabadcbf7450b73d233e3e6ffa3612fc42}.tar.gz
+      https://github.com/mikey-semy/plane-mcp/archive/${PLANE_MCP_REF:-533b3b5dd38cd0e3d3bb55f3acc1e9a06c3987e1}.tar.gz
       && exec plane-mcp"
     deploy:
       replicas: 1
